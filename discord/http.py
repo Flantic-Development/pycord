@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, Coroutine, Iterable, Sequence, TypeVar
 from urllib.parse import quote as _uriquote
 
 import aiohttp
+import os
 
 from . import __version__, utils
 from .errors import (
@@ -123,7 +124,10 @@ class Route:
 
     @property
     def base(self) -> str:
-        return f"https://discord.com/api/v{API_VERSION}"
+        if os.environ.get("DISCORD_REST_BASE"):
+          return f"https://{os.environ.get('DISCORD_REST_BASE')}/api/v{API_VERSION}"
+        else:
+          return f"https://discord.com/api/v{API_VERSION}"
 
     @property
     def bucket(self) -> str:
