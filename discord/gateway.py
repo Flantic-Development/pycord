@@ -42,6 +42,8 @@ from .activity import BaseActivity
 from .enums import SpeakingState
 from .errors import ConnectionClosed, InvalidArgument
 
+import os
+
 _log = logging.getLogger(__name__)
 
 __all__ = (
@@ -334,7 +336,12 @@ class DiscordWebSocket:
 
         This is for internal use only.
         """
-        gateway = gateway or await client.http.get_gateway()
+
+        if os.environ.get("DISCORD_GATEWAY_ENDPOINT"):
+          gateway = os.environ.get("DISCORD_GATEWAY_ENDPOINT")
+        else:
+          gateway = gateway or await client.http.get_gateway()
+
         socket = await client.http.ws_connect(gateway)
         ws = cls(socket, loop=client.loop)
 
