@@ -116,9 +116,6 @@ class BaseFlags:
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, self.__class__) and self.value == other.value
 
-    def __ne__(self, other: Any) -> bool:
-        return not self.__eq__(other)
-
     def __hash__(self) -> int:
         return hash(self.value)
 
@@ -404,6 +401,14 @@ class MessageFlags(BaseFlags):
 
         return 4096
 
+    @flag_value
+    def is_voice_message(self):
+        """:class:`bool`: Returns ``True`` if this message is a voice message.
+
+        .. versionadded:: 2.5
+        """
+        return 8192
+
 
 @fill_with_flags()
 class PublicUserFlags(BaseFlags):
@@ -631,8 +636,8 @@ class Intents(BaseFlags):
     @classmethod
     def all(cls: type[Intents]) -> Intents:
         """A factory method that creates a :class:`Intents` with everything enabled."""
-        bits = max(cls.VALID_FLAGS.values()).bit_length()
-        value = (1 << bits) - 1
+        value = sum({1 << (flag.bit_length() - 1) for flag in cls.VALID_FLAGS.values()})
+
         self = cls.__new__(cls)
         self.value = value
         return self
@@ -1337,6 +1342,14 @@ class ApplicationFlags(BaseFlags):
     def group_dm_create(self):
         """:class:`bool`: Returns ``True`` if the application can create group DMs."""
         return 1 << 5
+
+    @flag_value
+    def application_auto_moderation_rule_create_badge(self):
+        """:class:`bool`: Returns ``True`` if the application uses the Auto Moderation API.
+
+        .. versionadded:: 2.5
+        """
+        return 1 << 6
 
     @flag_value
     def rpc_has_connected(self):

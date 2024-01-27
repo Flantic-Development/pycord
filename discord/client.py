@@ -30,6 +30,7 @@ import logging
 import signal
 import sys
 import traceback
+from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Generator, Sequence, TypeVar
 
 import aiohttp
@@ -253,6 +254,27 @@ class Client:
             VoiceClient.warn_nacl = False
             _log.warning("PyNaCl is not installed, voice will NOT be supported")
 
+    async def __aenter__(self) -> Client:
+        loop = asyncio.get_running_loop()
+        self.loop = loop
+        self.http.loop = loop
+        self._connection.loop = loop
+
+        self._ready = asyncio.Event()
+
+        return self
+
+    async def __aexit__(
+        self,
+        exc_t: BaseException | None,
+        exc_v: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if not self.is_closed():
+            await self.close()
+
+    # internals
+
     def _get_websocket(
         self, guild_id: int | None = None, *, shard_id: int | None = None
     ) -> DiscordWebSocket:
@@ -442,8 +464,18 @@ class Client:
         # Schedule additional handlers registered with @listen
         for coro in self._event_handlers.get(method, []):
             self._schedule_event(coro, method, *args, **kwargs)
-            if coro._once:
-                once_listeners.append(coro)
+
+            try:
+                if coro._once:  # added using @listen()
+                    once_listeners.append(coro)
+
+            except AttributeError:  # added using @Cog.add_listener()
+                # https://github.com/Pycord-Development/pycord/pull/1989
+                # Although methods are similar to functions, attributes can't be added to them.
+                # This means that we can't add the `_once` attribute in the `add_listener` method
+                # and can only be added using the `@listen` decorator.
+
+                continue
 
         # remove the once listeners
         for coro in once_listeners:
@@ -621,6 +653,8 @@ class Client:
                 # Always try to RESUME the connection
                 # If the connection is not RESUME-able then the gateway will invalidate the session.
                 # This is apparently what the official Discord client does.
+                if self.ws is None:
+                    continue
                 ws_params.update(
                     sequence=self.ws.sequence, resume=True, session=self.ws.session_id
                 )
@@ -1017,7 +1051,9 @@ class Client:
             yield from guild.members
 
     async def get_or_fetch_user(self, id: int, /) -> User | None:
-        """Looks up a user in the user cache or fetches if not found.
+        """|coro|
+
+        Looks up a user in the user cache or fetches if not found.
 
         Parameters
         ----------
